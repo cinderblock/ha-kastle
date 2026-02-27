@@ -1,0 +1,3 @@
+rediscover_readers:
+  name: Rediscover readers
+  description: Fetch the latest list of authorized readers from Kastle and update entities.

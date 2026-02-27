@@ -1,0 +1,37 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Kastle Access",
+        "description": "Enter your Kastle account credentials. A verification PIN will be sent to your email.",
+        "data": {
+          "email": "Email address",
+          "country_code": "Country code",
+          "mobile_number": "Phone number (digits only)"
+        }
+      },
+      "pin": {
+        "title": "Verify PIN",
+        "description": "Enter the 6-digit PIN sent to {email}",
+        "data": {
+          "pin": "Verification PIN"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to Kastle servers",
+      "invalid_auth": "Invalid PIN or authentication failed",
+      "api_error": "Kastle API error. Check logs for details."
+    },
+    "abort": {
+      "already_configured": "This Kastle account is already configured",
+      "reauth_successful": "Re-authentication successful"
+    }
+  },
+  "services": {
+    "rediscover_readers": {
+      "name": "Rediscover readers",
+      "description": "Fetch the latest list of authorized readers from Kastle and update entities."
+    }
+  }
+}
