@@ -1,12 +1,11 @@
-"""Lock platform for the Kastle Access integration."""
+"""Button platform for the Kastle Access integration."""
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Any
 
-from homeassistant.components.lock import LockEntity, LockEntityFeature
+from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -17,16 +16,13 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# Seconds to show "unlocking" state before reverting to "locked"
-UNLOCK_DISPLAY_SECONDS = 5
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Kastle lock entities from a config entry."""
+    """Set up Kastle button entities from a config entry."""
     api: KastleApi = hass.data[DOMAIN][entry.entry_id]["api"]
 
     readers = entry.data.get("readers", [])
@@ -38,7 +34,7 @@ async def async_setup_entry(
     if not card and cards:
         card = cards[0]
 
-    entities: list[KastleLock] = []
+    entities: list[KastleUnlockButton] = []
     for reader in readers:
         if not reader.get("is_remote_unlock"):
             continue
@@ -47,7 +43,7 @@ async def async_setup_entry(
         building = buildings.get(building_id, {})
 
         entities.append(
-            KastleLock(
+            KastleUnlockButton(
                 api=api,
                 entry=entry,
                 reader=reader,
@@ -62,11 +58,11 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class KastleLock(LockEntity):
-    """A Kastle access-controlled door."""
+class KastleUnlockButton(ButtonEntity):
+    """A Kastle access-controlled door unlock button."""
 
     _attr_has_entity_name = True
-    _attr_supported_features = LockEntityFeature.OPEN
+    _attr_icon = "mdi:door-open"
     _attr_should_poll = False
 
     def __init__(
@@ -77,13 +73,12 @@ class KastleLock(LockEntity):
         card: dict[str, Any] | None,
         building: dict[str, Any],
     ) -> None:
-        """Initialize the lock."""
+        """Initialize the button."""
         self._api = api
         self._entry = entry
         self._reader = reader
         self._card = card
         self._building = building
-        self._is_unlocking = False
 
         reader_id = reader["reader_id"]
         cardholder_id = entry.data.get("cardholder_id", "unknown")
@@ -118,31 +113,10 @@ class KastleLock(LockEntity):
             "model": building_addr,
         }
 
-    @property
-    def is_locked(self) -> bool:
-        """Return True — Kastle doors auto-lock, state is always assumed locked."""
-        return True
-
-    @property
-    def is_unlocking(self) -> bool:
-        """Return True when an unlock command is in progress."""
-        return self._is_unlocking
-
-    async def async_unlock(self, **kwargs: Any) -> None:
+    async def async_press(self) -> None:
         """Unlock (unlatch) the door."""
-        await self._do_unlatch()
-
-    async def async_open(self, **kwargs: Any) -> None:
-        """Open (unlatch) the door — same as unlock for Kastle."""
-        await self._do_unlatch()
-
-    async def _do_unlatch(self) -> None:
-        """Send the UnlatchDoor command."""
         if not self._card:
             raise HomeAssistantError("No card available for this door")
-
-        self._is_unlocking = True
-        self.async_write_ha_state()
 
         try:
             await self._api.unlock_door(
@@ -155,23 +129,10 @@ class KastleLock(LockEntity):
             )
             _LOGGER.info("Unlocked %s", self._attr_name)
         except KastleAuthError as err:
-            self._is_unlocking = False
-            self.async_write_ha_state()
             _LOGGER.error("Auth error unlocking %s: %s", self._attr_name, err)
             self._entry.async_start_reauth(self.hass)
             raise HomeAssistantError(
                 f"Authentication expired. Re-authentication required: {err}"
             ) from err
         except KastleApiError as err:
-            self._is_unlocking = False
-            self.async_write_ha_state()
             raise HomeAssistantError(f"Failed to unlock: {err}") from err
-        except Exception:
-            self._is_unlocking = False
-            self.async_write_ha_state()
-            raise
-
-        # Briefly show "unlocking" then revert to locked
-        await asyncio.sleep(UNLOCK_DISPLAY_SECONDS)
-        self._is_unlocking = False
-        self.async_write_ha_state()

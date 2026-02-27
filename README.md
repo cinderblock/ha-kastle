@@ -6,7 +6,7 @@ Unofficial Home Assistant integration for [Kastle Systems](https://www.kastle.co
 
 - Unlock any Kastle-managed door you have access to
 - Automatic discovery of all authorized readers
-- Lock entities integrate with HA automations, scripts, and dashboards
+- Button entities integrate with HA automations, scripts, and dashboards
 - Secure: generates its own cryptographic keypair, signs every request
 
 ## Installation
@@ -36,13 +36,11 @@ Or add manually:
 4. Check your email for a 6-digit verification PIN
 5. Enter the PIN to complete setup
 
-All authorized doors will automatically appear as lock entities.
+All authorized doors will automatically appear as button entities.
 
 ## Usage
 
-Each door appears as a lock entity. Use the **Unlock** action to momentarily unlatch the door (same as tapping "Remote Unlock" in the Kastle app).
-
-Doors auto-lock, so the entity always returns to the "Locked" state after a few seconds.
+Each door appears as a button entity. Press the button to momentarily unlatch the door (same as tapping "Remote Unlock" in the Kastle app). The button's last-pressed timestamp shows when you last unlocked the door.
 
 ### Rediscover Readers
 
@@ -59,9 +57,9 @@ automation:
         zone: zone.home
         event: enter
     action:
-      - service: lock.unlock
+      - service: button.press
         target:
-          entity_id: lock.front_entry_gate_14
+          entity_id: button.front_entry_gate_14
 ```
 
 ## How It Works
