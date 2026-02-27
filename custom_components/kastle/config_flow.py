@@ -83,8 +83,12 @@ class KastleConfigFlow(ConfigFlow, domain=DOMAIN):
             except KastleApiError as err:
                 _LOGGER.error("ValidateIdentity failed: %s", err)
                 errors["base"] = "cannot_connect"
-            except (aiohttp.ClientError, TimeoutError):
+            except (aiohttp.ClientError, TimeoutError) as err:
+                _LOGGER.error("Network error during ValidateIdentity: %s", err)
                 errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error during ValidateIdentity")
+                errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="user",
@@ -100,33 +104,40 @@ class KastleConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             pin = user_input["pin"].strip()
-            assert self._api is not None
+
+            if self._api is None:
+                _LOGGER.error("API client lost between steps — restarting flow")
+                return await self.async_step_user()
 
             try:
-                # Verify PIN
+                # Step 2a: Verify PIN
+                _LOGGER.debug("Verifying PIN for %s", self._email)
                 await self._api.validate_pin(self._email, pin)
 
-                # Register our device
+                # Step 2b: Register our device
+                _LOGGER.debug("Registering identity")
                 reg_data = await self._api.register_identity(self._mobile_number)
                 cardholder = reg_data.get("CardholderDetails", {})
                 cardholder_id = cardholder.get("CardHolderId")
 
-                # Create digital card
+                # Step 2c: Create digital card
+                _LOGGER.debug("Creating digital card")
                 card_data = await self._api.create_digital_card()
                 cards = [
                     {
-                        "card_id": c["CardID"],
-                        "external_number": c["ExternalNumber"],
+                        "card_id": c.get("CardID", ""),
+                        "external_number": c.get("ExternalNumber", ""),
                         "card_format_id": c.get("CardFormatID"),
                     }
                     for c in card_data.get("CardDetailsList", [])
                 ]
 
-                # Fetch authorized readers
+                # Step 2d: Fetch authorized readers
+                _LOGGER.debug("Fetching authorized readers")
                 readers_data = await self._api.get_authorized_readers()
                 readers = [
                     {
-                        "reader_id": str(r["ReaderId"]),
+                        "reader_id": str(r.get("ReaderId", "")),
                         "reader_designator": r.get("ReaderDesignator", ""),
                         "description": r.get("Description", ""),
                         "floor_description": r.get("FloorDescription", ""),
@@ -136,14 +147,25 @@ class KastleConfigFlow(ConfigFlow, domain=DOMAIN):
                     for r in readers_data.get("AuthorizedReadersList", [])
                 ]
 
-                # Extract building info
+                # Extract building info (use str keys for JSON serialization)
                 buildings = {
-                    b["BuildingId"]: {
+                    str(b.get("BuildingId", "")): {
                         "address": b.get("BuildingAddress", ""),
                         "number": b.get("BuildingNumber", ""),
                     }
                     for b in readers_data.get("BuildingLocations", [])
                 }
+
+                # Serialize keys — guard against None
+                if not self._api.ipk_private or not self._api.pkoc_private:
+                    _LOGGER.error("Keys were not generated during registration")
+                    errors["base"] = "api_error"
+                    return self.async_show_form(
+                        step_id="pin",
+                        data_schema=STEP_PIN_SCHEMA,
+                        errors=errors,
+                        description_placeholders={"email": self._email},
+                    )
 
                 entry_data = {
                     "email": self._email,
@@ -164,6 +186,13 @@ class KastleConfigFlow(ConfigFlow, domain=DOMAIN):
 
                 title = f"Kastle - {cardholder.get('FirstName', self._email)}"
 
+                _LOGGER.info(
+                    "Kastle registration complete: %s (%d readers, %d cards)",
+                    title,
+                    len(readers),
+                    len(cards),
+                )
+
                 if self._reauth_entry:
                     self.hass.config_entries.async_update_entry(
                         self._reauth_entry, data=entry_data
@@ -176,13 +205,17 @@ class KastleConfigFlow(ConfigFlow, domain=DOMAIN):
                 return self.async_create_entry(title=title, data=entry_data)
 
             except KastleAuthError as err:
-                _LOGGER.error("PIN verification failed: %s", err)
+                _LOGGER.error("Kastle auth error: %s (code=%s)", err, err.error_code)
                 errors["base"] = "invalid_auth"
             except KastleApiError as err:
-                _LOGGER.error("Registration failed: %s", err)
+                _LOGGER.error("Kastle API error: %s (code=%s)", err, err.error_code)
                 errors["base"] = "api_error"
-            except (aiohttp.ClientError, TimeoutError):
+            except (aiohttp.ClientError, TimeoutError) as err:
+                _LOGGER.error("Network error during Kastle setup: %s", err)
                 errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error during Kastle PIN verification")
+                errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="pin",

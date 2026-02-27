@@ -21,7 +21,8 @@
     "error": {
       "cannot_connect": "Unable to connect to Kastle servers",
       "invalid_auth": "Invalid PIN or authentication failed",
-      "api_error": "Kastle API error. Check logs for details."
+      "api_error": "Kastle API error. Check logs for details.",
+      "unknown": "Unexpected error. Check Home Assistant logs (Settings > System > Logs) for details."
     },
     "abort": {
       "already_configured": "This Kastle account is already configured",
