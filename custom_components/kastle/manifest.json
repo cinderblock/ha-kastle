@@ -2,11 +2,11 @@
   "domain": "kastle",
   "name": "Kastle Access",
   "codeowners": ["@cinderblock"],
-  "version": "0.1.0",
   "config_flow": true,
+  "documentation": "https://github.com/cinderblock/ha-kastle",
   "integration_type": "hub",
   "iot_class": "cloud_polling",
-  "documentation": "https://github.com/cinderblock/ha-kastle",
   "issue_tracker": "https://github.com/cinderblock/ha-kastle/issues",
-  "requirements": ["cryptography>=42.0.0"]
+  "requirements": ["cryptography>=42.0.0"],
+  "version": "0.1.0"
 }
