@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json as json_mod
 import logging
 import time
 import uuid
@@ -155,8 +156,6 @@ class KastleApi:
             )
 
             try:
-                import json as json_mod
-
                 raw = json_mod.loads(resp_text)
             except (json_mod.JSONDecodeError, ValueError) as parse_err:
                 raise KastleApiError(
