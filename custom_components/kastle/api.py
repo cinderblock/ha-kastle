@@ -134,7 +134,7 @@ class KastleApi:
         if extra_headers:
             headers.update(extra_headers)
 
-        _LOGGER.debug("API call: POST %s", path)
+        _LOGGER.debug("API call: POST %s (headers: %s)", path, list(headers.keys()))
 
         async with self._session.post(
             url, json=body, headers=headers, timeout=aiohttp.ClientTimeout(total=20)
@@ -146,7 +146,37 @@ class KastleApi:
                     name, val = cookie_str.split("=", 1)
                     self.cookies[name.strip()] = val.strip()
 
-            data: dict[str, Any] = await resp.json(content_type=None)
+            resp_text = await resp.text()
+            _LOGGER.debug(
+                "API response %s: HTTP %s, body=%s",
+                path,
+                resp.status,
+                resp_text[:500],
+            )
+
+            try:
+                import json as json_mod
+
+                raw = json_mod.loads(resp_text)
+            except (json_mod.JSONDecodeError, ValueError) as parse_err:
+                raise KastleApiError(
+                    f"Invalid JSON from {path}: {resp_text[:200]}"
+                ) from parse_err
+
+            # Handle unexpected response types (string, None, etc.)
+            if not isinstance(raw, dict):
+                resp_text = await resp.text() if not isinstance(raw, str) else raw
+                _LOGGER.error(
+                    "Kastle API %s returned non-dict (%s): %s",
+                    path,
+                    type(raw).__name__,
+                    resp_text[:500],
+                )
+                raise KastleApiError(
+                    f"Unexpected response from {path}: {resp_text[:200]}",
+                )
+
+            data: dict[str, Any] = raw
 
             if not data.get("IsSuccess", False):
                 error_code = data.get("ErrorCode", 0)
