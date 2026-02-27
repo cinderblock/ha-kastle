@@ -247,6 +247,30 @@ class KastleApi:
 
         await self._api_call("IPK/ValidateMobileTempPin", body, headers)
 
+    async def get_available_keys(self) -> dict[str, Any]:
+        """Fetch available keys (pre-registration). Returns CardholderId and details."""
+        if not self.ipk_private:
+            msg = "IPK key not generated"
+            raise KastleApiError(msg)
+
+        nonce = generate_nonce()
+        ipk_nonce = generate_nonce()
+        ipk_sig = ec_sign_nonce(self.ipk_private, ipk_nonce)
+
+        headers = {
+            "authorization": f"Bearer {self.jwt_token}",
+            "ipk": get_public_key_hex(self.ipk_private),
+            "ipk_nonce": ipk_nonce,
+            "ipk_digitalsignature": ipk_sig,
+            "nonce": nonce,
+            "digitalsignature": "",
+        }
+
+        body = {"DeviceManufacturer": "Apple"}
+
+        data = await self._api_call("IPK/GetAvailableKeys", body, headers)
+        return data.get("Data", {})
+
     async def register_identity(
         self, mobile_number: str, cardholder_id: int | None = None
     ) -> dict[str, Any]:

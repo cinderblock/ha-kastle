@@ -114,13 +114,24 @@ class KastleConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.debug("Verifying PIN for %s", self._email)
                 await self._api.validate_pin(self._email, pin)
 
-                # Step 2b: Register our device
+                # Step 2b: Get available keys to find CardholderId
+                _LOGGER.debug("Fetching available keys")
+                keys_data = await self._api.get_available_keys()
+                available_keys = keys_data.get("AvailableKeysList", [])
+                cardholder_id = None
+                if available_keys:
+                    cardholder_id = available_keys[0].get("CardholderId")
+                _LOGGER.debug("CardholderId: %s", cardholder_id)
+
+                # Step 2c: Register our device
                 _LOGGER.debug("Registering identity")
-                reg_data = await self._api.register_identity(self._mobile_number)
+                reg_data = await self._api.register_identity(
+                    self._mobile_number, cardholder_id=cardholder_id
+                )
                 cardholder = reg_data.get("CardholderDetails", {})
                 cardholder_id = cardholder.get("CardHolderId")
 
-                # Step 2c: Create digital card
+                # Step 2d: Create digital card
                 _LOGGER.debug("Creating digital card")
                 card_data = await self._api.create_digital_card()
                 cards = [
@@ -132,7 +143,7 @@ class KastleConfigFlow(ConfigFlow, domain=DOMAIN):
                     for c in card_data.get("CardDetailsList", [])
                 ]
 
-                # Step 2d: Fetch authorized readers
+                # Step 2e: Fetch authorized readers
                 _LOGGER.debug("Fetching authorized readers")
                 readers_data = await self._api.get_authorized_readers()
                 readers = [
