@@ -1,0 +1,7 @@
+{
+  "services": {
+    "rediscover_readers": {
+      "service": "mdi:refresh"
+    }
+  }
+}
