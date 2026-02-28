@@ -66,8 +66,6 @@ def test_serialize_produces_pem():
 
 def test_ec_sign_nonce_produces_valid_signature():
     """Signature should be 128 hex chars (64 bytes r||s) and verifiable."""
-    from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
-
     key = generate_ec_keypair()
     nonce = "638789760000000000"
 
