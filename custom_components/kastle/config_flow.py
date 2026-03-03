@@ -59,8 +59,11 @@ class KastleConfigFlow(ConfigFlow, domain=DOMAIN):
             self._country_code = user_input["country_code"].strip()
             self._mobile_number = user_input["mobile_number"].strip()
 
-            # Prevent duplicate entries for same email
-            await self.async_set_unique_id(self._email.lower())
+            # Prevent duplicate entries for same email, but allow
+            # restarting a stale/expired flow (raise_on_progress=False)
+            await self.async_set_unique_id(
+                self._email.lower(), raise_on_progress=False
+            )
             if not self._reauth_entry:
                 self._abort_if_unique_id_configured()
 
